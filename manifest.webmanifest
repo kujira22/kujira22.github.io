@@ -1,0 +1,20 @@
+{
+  "name": "Chwazi Clone",
+  "short_name": "Chwazi",
+  "description": "Touch-first random player selector.",
+  "id": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#101010",
+  "theme_color": "#101010",
+  "scope": "./",
+  "start_url": "./",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
