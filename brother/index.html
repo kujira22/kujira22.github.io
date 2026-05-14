@@ -7,7 +7,7 @@
 <style>
   @font-face {
     font-family: "Druk Wide Super";
-    src: url("./fonts/DrukWide-Super-Trial.otf") format("opentype");
+    src: url("./fonts/DrukWide-Super-Trial.otf?v=20260514-assets1") format("opentype");
     font-weight: 900;
     font-style: normal;
   }
@@ -31,7 +31,9 @@ const clock = new THREE.Clock();
 const renderScale = 2;
 const mobileLayoutBreakpoint = 900;
 const assetBaseUrl = './';
-const constructedRingAsset = `${assetBaseUrl}brotherV7.glb`;
+const assetVersion = '20260514-assets1';
+const getAssetUrl = (path) => `${assetBaseUrl}${path}?v=${assetVersion}`;
+const constructedRingAsset = getAssetUrl('brotherV7.glb');
 
 //////// CAMERA
 const startFov = 48;
@@ -102,7 +104,7 @@ const innerRingOptions = {
 
 //////// LIVE TEXT RINGS
 const textRingFontFamily = 'Druk Wide Super';
-const textRingFontUrl = `${assetBaseUrl}fonts/DrukWide-Super-Trial.otf`;
+const textRingFontUrl = getAssetUrl('fonts/DrukWide-Super-Trial.otf');
 const outerText = '';
 const outerTextCopies = 2;
 const innerText = '';
