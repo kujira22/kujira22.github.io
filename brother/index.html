@@ -139,6 +139,7 @@ const videoSphereLayerSettings = {
   ],
   segments: 128,
   radius: 0.15,
+  radiusMobile: 0.05,
   z: 0,
   delayMs: 2400,
   introAnimationMs: 1600,
@@ -312,9 +313,16 @@ function getRandomVideoSphereUrl() {
   return urls[Math.floor(Math.random() * urls.length)];
 }
 
+function getVideoSphereRadius() {
+  return isMobileLayout
+    ? videoSphereLayerSettings.radiusMobile
+    : videoSphereLayerSettings.radius;
+}
+
 function updateVideoSphereGeometry(layer, warpProgress) {
   const positions = layer.geometry.attributes.position;
   const uvs = layer.geometry.attributes.uv;
+  const radius = getVideoSphereRadius();
   const morphProgress = 1 - Math.pow(1 - warpProgress, 2);
   const textureProgress = smoothstep(0, 0.9, warpProgress);
 
@@ -407,12 +415,12 @@ function updateVideoSphereGeometry(layer, warpProgress) {
     finalU += Math.sign(normalizedX) * horizontalEdge * horizontalEdge * edgeUvBend;
     finalV -= Math.sign(normalizedY) * verticalEdge * verticalEdge * edgeUvBend;
 
-    const sphereZ = z * videoSphereLayerSettings.radius * (1 - morphProgress);
+    const sphereZ = z * radius * (1 - morphProgress);
 
     positions.setXYZ(
       i,
-      morphedX * videoSphereLayerSettings.radius,
-      morphedY * videoSphereLayerSettings.radius,
+      morphedX * radius,
+      morphedY * radius,
       sphereZ
     );
     uvs.setXY(i, finalU, finalV);
@@ -529,12 +537,13 @@ function createVideoSphereLayer() {
   }
 
   function syncScreenAspect() {
+    const radius = getVideoSphereRadius();
     const cameraDepth = Math.max(camera.position.z - sphereMesh.position.z, 0.001);
     const viewportHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * cameraDepth;
     const viewportWidth = viewportHeight * camera.aspect;
 
-    finalRectangleSize.halfWidth = (viewportWidth * 0.5) / videoSphereLayerSettings.radius;
-    finalRectangleSize.halfHeight = (viewportHeight * 0.5) / videoSphereLayerSettings.radius;
+    finalRectangleSize.halfWidth = (viewportWidth * 0.5) / radius;
+    finalRectangleSize.halfHeight = (viewportHeight * 0.5) / radius;
     updateFinalUvCrop(viewportWidth, viewportHeight);
   }
 
