@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brother</title>
+<style>
+  @font-face {
+    font-family: "Druk Wide Super";
+    src: url("./fonts/DrukWide-Super-Trial.otf") format("opentype");
+    font-weight: 900;
+    font-style: normal;
+  }
+
+  body { margin:0; overflow:hidden; background:#e9e9e9; }
+</style>
+</head>
+<body>
+
+<!-- CORE -->
+<script src="https://unpkg.com/three@0.126.1/build/three.min.js"></script>
+
+<!-- NON-MODULE EXAMPLES (IMPORTANT VERSION MATCH) -->
+<script src="https://unpkg.com/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/three@0.126.1/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+//////// CORE
+const scene = new THREE.Scene();
+const clock = new THREE.Clock();
+const renderScale = 2;
+const mobileLayoutBreakpoint = 900;
+const assetBaseUrl = './';
+const constructedRingAsset = `${assetBaseUrl}brotherV7.glb`;
+
+//////// CAMERA
+const startFov = 48;
+const introDisabledFov = 30;
+const mobileMarqueeFov = 22;
+const introDisabledZ = 1.45;
+const introCameraStartZ = 2.35;
+
+//////// Y SPIN
+const spinSpeed = 0.1;
+const preIntroStartRotationDegrees = -30;
+const introSpinTurns = 2;
+const introAnimationDurationMs = 2000;
+const introSwitchEnabled = true;
+const introSwitchPoint = { type: 'degrees', value: -30 };
+
+//////// TILT
+const baseTiltX = THREE.MathUtils.degToRad(-2.5);
+const baseTiltZ = THREE.MathUtils.degToRad(3);
+const secondaryRotationXAmount = THREE.MathUtils.degToRad(12);
+const secondaryRotationZAmount = THREE.MathUtils.degToRad(8);
+const secondaryRotationSpeed = 0.1;
+
+//////// STREAM WIDTH AND SPACING
+const streamWidthStartScale = 0.4;
+const streamWidthEndScale = 1;
+const streamGapStartScale = 0.1;
+const streamGapEndScale = 1;
+
+//////// RADIUS
+const constructedRingStartRadius = 1.2;
+const constructedRingEndRadius = 0.38;
+
+//////// OVERALL SCALE
+const constructedRingStartScale = 0.4;
+const constructedRingEndScale = 0.7;
+const mobileConstructedRingStartScale = constructedRingStartScale * 0.5;
+const mobileConstructedRingEndScale = constructedRingEndScale * 0.5;
+
+//////// MARQUEE PHASE
+const marqueePhaseEnabled = true;
+const marqueePhaseDelayMs = 4000;
+const marqueePhaseDurationMs = 800;
+const marqueeOuterScale = 4.5;
+const marqueeOuterDepthScale = 0.01;
+const marqueeBottomPaddingViewport = 0.01;
+const marqueeSpinSpeed = 0.05;
+const marqueeTransitionSpinTurns = 0.5;
+const mobileMarqueeModelScale = 2.1;
+const mobileMarqueeDepthScale = 1;
+const mobileMarqueeBottomPaddingViewport = 0.1;
+const mobileMarqueeWidthScale = 1;
+const mobileMarqueeGapRatio = 2.3;
+const mobileMarqueeWidthFill = 4;
+
+//////// RINGS
+const activeInnerRing = 'film';
+const outerRingName = 'BROTHER3';
+const outerRingCopies = 3;
+const filmRingName = 'FILM3';
+const filmRingCopies = 6;
+const musicRingName = 'MUSIC3';
+const musicRingCopies = 5;
+const innerRingOptions = {
+  film: { name: filmRingName, copies: filmRingCopies },
+  music: { name: musicRingName, copies: musicRingCopies },
+};
+
+//////// LIVE TEXT RINGS
+const textRingFontFamily = 'Druk Wide Super';
+const textRingFontUrl = `${assetBaseUrl}fonts/DrukWide-Super-Trial.otf`;
+const outerText = '';
+const outerTextCopies = 2;
+const innerText = '';
+const innerTextCopies = 2;
+const textRingHeight = 0.18;
+const textRingCanvasScale = 4;
+const textRingGeometrySegments = 256;
+const textRingColor = '#ffffff';
+const textRingPadding = 0.08;
+const textRingAutoFitToRepeat = true;
+const textRingSlotFill = 0.8;
+
+//////// VIDEO SPHERE LAYER SETTINGS
+const videoSphereLayerSettings = {
+  enabled: true,
+  useTestTexture: false,
+  videoUrl: 'BrotherCutBarbour2.mp4',
+  videoUrls: [
+    'BrotherCut_DRM.mp4',
+    'BrotherCutBarbour2.mp4',
+    'BrotherCut_SD.mp4',
+    'BrotherCutBarbour3.mp4',
+    'BrotherCutBarbourShort.mp4',
+  ],
+  segments: 128,
+  radius: 0.15,
+  z: 0,
+  delayMs: 2400,
+  introAnimationMs: 1600,
+  spinTimeMs: 0,
+  expandAnimationMs: 400,
+  spinTurns: 0.8,
+  edgeUvBend: 0.4,
+  edgeUvWidthStart: 0.6,
+  edgeUvWidthEnd: 0.1,
+  renderOrder: 0,
+};
+
+//////// STATE
+let model = null;
+let modelMarquee = null;
+let modelSpin = null;
+let ringRoot = null;
+let sourceScene = null;
+let startupSpinStartTime = null;
+let startupSpinLastAngle = 0;
+let marqueeSpinLastAngle = 0;
+let startupSpinFinished = false;
+let constructedRingIntroFinished = false;
+let introSwitchProgress = 0;
+let lastEasedVisualIntroProgress = 0;
+let currentInnerRing = activeInnerRing;
+let currentOuterText = outerText.trim();
+let currentInnerText = innerText.trim();
+let typedText = '';
+let isTypingText = false;
+let awaitingTextConfirm = false;
+let marqueePauseStartTime = null;
+let marqueePausedDurationMs = 0;
+let textRingFontLoadPromise = null;
+let ringRebuildId = 0;
+let isMobileLayout = getIsMobileLayout();
+let videoSphereLayer = null;
+
+const constructedRingStreams = [];
+
+const camera = new THREE.PerspectiveCamera(startFov, innerWidth/innerHeight, 0.001, 200);
+camera.position.set(0, 0, introCameraStartZ);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1;
+renderer.setPixelRatio(getRendererPixelRatio());
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0));
+
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5,5,5);
+scene.add(light);
+
+const loader = new THREE.GLTFLoader();
+
+//////// VIDEO SPHERE LAYER IMPLEMENTATION
+function createVideoTestTexture() {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const bands = ['#ff3b30', '#ffcc00', '#34c759', '#00c7be', '#007aff', '#af52de', '#ff2d55', '#8e8e93'];
+
+  canvas.width = 1024;
+  canvas.height = 512;
+
+  bands.forEach((color, index) => {
+    context.fillStyle = color;
+    context.fillRect((canvas.width / bands.length) * index, 0, canvas.width / bands.length, canvas.height);
+  });
+
+  context.strokeStyle = '#000000';
+  context.lineWidth = 4;
+
+  for (let x = 0; x <= canvas.width; x += canvas.width / 16) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, canvas.height);
+    context.stroke();
+  }
+
+  for (let y = 0; y <= canvas.height; y += canvas.height / 8) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(canvas.width, y);
+    context.stroke();
+  }
+
+  context.fillStyle = '#ffffff';
+  context.strokeStyle = '#000000';
+  context.lineWidth = 8;
+  context.font = '900 72px sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+
+  [
+    ['TOP', 0.5, 0.12],
+    ['BOTTOM', 0.5, 0.88],
+    ['LEFT', 0.12, 0.5],
+    ['RIGHT', 0.88, 0.5],
+    ['CENTER', 0.5, 0.5],
+  ].forEach(([label, x, y]) => {
+    context.strokeText(label, canvas.width * x, canvas.height * y);
+    context.fillText(label, canvas.width * x, canvas.height * y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.encoding = THREE.sRGBEncoding;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  return texture;
+}
+
+function createVideoWarpGeometry(widthSegments, heightSegments) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+
+  for (let y = 0; y <= heightSegments; y++) {
+    const v = y / heightSegments;
+
+    for (let x = 0; x <= widthSegments; x++) {
+      const u = x / widthSegments;
+
+      positions.push(0, 0, 0);
+      uvs.push(u, v);
+    }
+  }
+
+  for (let y = 0; y < heightSegments; y++) {
+    for (let x = 0; x < widthSegments; x++) {
+      const a = y * (widthSegments + 1) + x;
+      const b = a + 1;
+      const c = a + widthSegments + 1;
+      const d = c + 1;
+
+      indices.push(a, b, d);
+      indices.push(a, d, c);
+    }
+  }
+
+  geometry.setIndex(indices);
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+  return geometry;
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = clamp01((value - edge0) / (edge1 - edge0));
+
+  return t * t * (3 - (2 * t));
+}
+
+function getRandomVideoSphereUrl() {
+  const urls = videoSphereLayerSettings.videoUrls;
+
+  if (!urls || urls.length === 0) {
+    return videoSphereLayerSettings.videoUrl;
+  }
+
+  return urls[Math.floor(Math.random() * urls.length)];
+}
+
+function updateVideoSphereGeometry(layer, warpProgress) {
+  const positions = layer.geometry.attributes.position;
+  const uvs = layer.geometry.attributes.uv;
+  const morphProgress = 1 - Math.pow(1 - warpProgress, 2);
+  const textureProgress = smoothstep(0, 0.9, warpProgress);
+
+  for (let i = 0; i < positions.count; i++) {
+    const uvIndex = i * 2;
+    const baseU = layer.baseUvs[uvIndex];
+    const baseV = layer.baseUvs[uvIndex + 1];
+    const centeredU = baseU - 0.5;
+    const azimuth = centeredU * Math.PI * 2;
+    const polar = baseV * Math.PI;
+    const sinPolar = Math.sin(polar);
+    const x = Math.sin(azimuth) * sinPolar;
+    const y = Math.cos(polar);
+    const z = Math.cos(azimuth) * sinPolar;
+    const squareX = (baseU * 2) - 1;
+    const squareY = 1 - (baseV * 2);
+    const rectangleX = squareX * layer.finalRectangleSize.halfWidth;
+    const rectangleY = squareY * layer.finalRectangleSize.halfHeight;
+    const cornerBaseSize = Math.min(
+      layer.finalRectangleSize.halfWidth,
+      layer.finalRectangleSize.halfHeight
+    );
+    const cornerRadiusProgress = smoothstep(0, 0.82, warpProgress);
+    const cornerFinishProgress = Math.pow(smoothstep(0.82, 1, warpProgress), 2);
+    const animatedCornerRadius = THREE.MathUtils.lerp(
+      cornerBaseSize * 2,
+      cornerBaseSize * 0.18,
+      cornerRadiusProgress
+    );
+    const cornerRadius = animatedCornerRadius * (1 - cornerFinishProgress);
+    const cornerCenterX = layer.finalRectangleSize.halfWidth - cornerRadius;
+    const cornerCenterY = layer.finalRectangleSize.halfHeight - cornerRadius;
+    const absRectangleX = Math.abs(rectangleX);
+    const absRectangleY = Math.abs(rectangleY);
+    let targetX = rectangleX;
+    let targetY = rectangleY;
+
+    if (
+      cornerRadius > 0.0001 &&
+      absRectangleX > cornerCenterX &&
+      absRectangleY > cornerCenterY
+    ) {
+      const localX = absRectangleX - cornerCenterX;
+      const localY = absRectangleY - cornerCenterY;
+      const localLength = Math.sqrt((localX * localX) + (localY * localY)) || 1;
+      const clampedLength = Math.min(localLength, cornerRadius);
+
+      targetX = Math.sign(rectangleX) * (cornerCenterX + ((localX / localLength) * clampedLength));
+      targetY = Math.sign(rectangleY) * (cornerCenterY + ((localY / localLength) * clampedLength));
+    }
+
+    const morphedX = THREE.MathUtils.lerp(x, targetX, morphProgress);
+    const morphedY = THREE.MathUtils.lerp(y, targetY, morphProgress);
+    const sphereU = 1 - baseU;
+    const sphereV = 1 - baseV;
+    const planeU = layer.finalUvCrop.uMin + ((1 - baseU) * (layer.finalUvCrop.uMax - layer.finalUvCrop.uMin));
+    const planeV = layer.finalUvCrop.vMin + ((1 - baseV) * (layer.finalUvCrop.vMax - layer.finalUvCrop.vMin));
+    let finalU = THREE.MathUtils.lerp(sphereU, planeU, textureProgress);
+    let finalV = THREE.MathUtils.lerp(sphereV, planeV, textureProgress);
+    const currentHalfWidth = THREE.MathUtils.lerp(
+      1,
+      layer.finalRectangleSize.halfWidth,
+      morphProgress
+    );
+    const currentHalfHeight = THREE.MathUtils.lerp(
+      1,
+      layer.finalRectangleSize.halfHeight,
+      morphProgress
+    );
+    const normalizedX = currentHalfWidth === 0
+      ? 0
+      : morphedX / currentHalfWidth;
+    const normalizedY = currentHalfHeight === 0
+      ? 0
+      : morphedY / currentHalfHeight;
+    const edgeShapeProgress = smoothstep(0, 1, warpProgress);
+    const edgeWidth = THREE.MathUtils.lerp(
+      videoSphereLayerSettings.edgeUvWidthStart,
+      videoSphereLayerSettings.edgeUvWidthEnd,
+      edgeShapeProgress
+    );
+    const edgeActivation = smoothstep(0.02, 0.16, warpProgress);
+    const edgeFade = 1 - smoothstep(0.62, 1, warpProgress);
+    const edgeUvBend = videoSphereLayerSettings.edgeUvBend *
+      edgeActivation *
+      edgeFade;
+    const horizontalEdge = smoothstep(1 - edgeWidth, 1, Math.abs(normalizedX));
+    const verticalEdge = smoothstep(1 - edgeWidth, 1, Math.abs(normalizedY));
+
+    finalU += Math.sign(normalizedX) * horizontalEdge * horizontalEdge * edgeUvBend;
+    finalV -= Math.sign(normalizedY) * verticalEdge * verticalEdge * edgeUvBend;
+
+    const sphereZ = z * videoSphereLayerSettings.radius * (1 - morphProgress);
+
+    positions.setXYZ(
+      i,
+      morphedX * videoSphereLayerSettings.radius,
+      morphedY * videoSphereLayerSettings.radius,
+      sphereZ
+    );
+    uvs.setXY(i, finalU, finalV);
+  }
+
+  positions.needsUpdate = true;
+  uvs.needsUpdate = true;
+  layer.geometry.computeBoundingSphere();
+}
+
+function createVideoSphereLayer() {
+  if (!videoSphereLayerSettings.enabled) {
+    return null;
+  }
+
+  const selectedVideoUrl = videoSphereLayerSettings.useTestTexture
+    ? ''
+    : getRandomVideoSphereUrl();
+  const video = videoSphereLayerSettings.useTestTexture
+    ? null
+    : document.createElement('video');
+
+  if (video) {
+    video.src = selectedVideoUrl;
+    video.crossOrigin = 'anonymous';
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+  }
+
+  const texture = video
+    ? new THREE.VideoTexture(video)
+    : createVideoTestTexture();
+  texture.encoding = THREE.sRGBEncoding;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  if (video) {
+    texture.premultiplyAlpha = false;
+    texture.unpackAlignment = 1;
+  }
+
+  const sphereMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    side: THREE.FrontSide,
+    toneMapped: false,
+  });
+  sphereMaterial.toneMapped = false;
+  sphereMaterial.fog = false;
+  const geometry = createVideoWarpGeometry(
+    videoSphereLayerSettings.segments,
+    videoSphereLayerSettings.segments
+  );
+  const baseUvs = Float32Array.from(geometry.attributes.uv.array);
+
+  const sphereMesh = new THREE.Mesh(
+    geometry,
+    sphereMaterial
+  );
+  sphereMesh.frustumCulled = false;
+  sphereMesh.renderOrder = videoSphereLayerSettings.renderOrder;
+  sphereMesh.position.z = videoSphereLayerSettings.z;
+  sphereMesh.scale.setScalar(0);
+  scene.add(sphereMesh);
+  const finalRectangleSize = {
+    halfWidth: 16 / 9,
+    halfHeight: 1,
+  };
+  const finalUvCrop = {
+    uMin: 0,
+    uMax: 1,
+    vMin: 0,
+    vMax: 1,
+  };
+
+  function getTextureAspect() {
+    if (video && video.videoWidth && video.videoHeight) {
+      return video.videoWidth / video.videoHeight;
+    }
+
+    if (texture.image && texture.image.width && texture.image.height) {
+      return texture.image.width / texture.image.height;
+    }
+
+    return 16 / 9;
+  }
+
+  function updateFinalUvCrop(viewportWidth, viewportHeight) {
+    const viewportAspect = viewportWidth / viewportHeight;
+    const textureAspect = getTextureAspect();
+
+    finalUvCrop.uMin = 0;
+    finalUvCrop.uMax = 1;
+    finalUvCrop.vMin = 0;
+    finalUvCrop.vMax = 1;
+
+    if (viewportAspect > textureAspect) {
+      const vRange = textureAspect / viewportAspect;
+
+      finalUvCrop.vMin = (1 - vRange) * 0.5;
+      finalUvCrop.vMax = 1 - finalUvCrop.vMin;
+      return;
+    }
+
+    const uRange = viewportAspect / textureAspect;
+
+    finalUvCrop.uMin = (1 - uRange) * 0.5;
+    finalUvCrop.uMax = 1 - finalUvCrop.uMin;
+  }
+
+  function syncScreenAspect() {
+    const cameraDepth = Math.max(camera.position.z - sphereMesh.position.z, 0.001);
+    const viewportHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * cameraDepth;
+    const viewportWidth = viewportHeight * camera.aspect;
+
+    finalRectangleSize.halfWidth = (viewportWidth * 0.5) / videoSphereLayerSettings.radius;
+    finalRectangleSize.halfHeight = (viewportHeight * 0.5) / videoSphereLayerSettings.radius;
+    updateFinalUvCrop(viewportWidth, viewportHeight);
+  }
+
+  function tryPlayVideo() {
+    if (!video) {
+      return;
+    }
+
+    const playPromise = video.play();
+
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  }
+
+  if (video) {
+    video.addEventListener('loadedmetadata', syncScreenAspect);
+    video.addEventListener('canplay', tryPlayVideo);
+    video.addEventListener('error', () => {
+      console.error(`Could not load video sphere asset: ${selectedVideoUrl}`);
+    });
+  }
+
+  const unlockPlayback = () => {
+    tryPlayVideo();
+  };
+
+  window.addEventListener('pointerdown', unlockPlayback);
+  window.addEventListener('touchstart', unlockPlayback, { passive: true });
+  window.addEventListener('keydown', unlockPlayback);
+
+  const layer = {
+    sphereMesh,
+    material: sphereMaterial,
+    geometry,
+    baseUvs,
+    video,
+    selectedVideoUrl,
+    texture,
+    finalRectangleSize,
+    finalUvCrop,
+    tryPlayVideo,
+    syncScreenAspect,
+  };
+
+  if (video) {
+    video.load();
+  }
+  syncScreenAspect();
+  updateVideoSphereGeometry(layer, 0);
+
+  return layer;
+}
+
+videoSphereLayer = createVideoSphereLayer();
+
+function getIsMobileLayout() {
+  return window.matchMedia(`(max-width: ${mobileLayoutBreakpoint}px)`).matches;
+}
+
+function getRendererPixelRatio() {
+  return window.devicePixelRatio || 1;
+}
+
+function getActiveMarqueeSettings() {
+  return isMobileLayout
+    ? {
+        outerScale: mobileMarqueeModelScale,
+        depthScale: mobileMarqueeDepthScale,
+        bottomPaddingViewport: mobileMarqueeBottomPaddingViewport,
+        rotationX: 0,
+        rotationZ: 0,
+      }
+    : {
+        outerScale: marqueeOuterScale,
+        depthScale: marqueeOuterDepthScale,
+        bottomPaddingViewport: marqueeBottomPaddingViewport,
+        rotationX: 0,
+        rotationZ: 0,
+      };
+}
+
+function getActiveIntroScaleRange() {
+  return isMobileLayout
+    ? {
+        start: mobileConstructedRingStartScale,
+        end: mobileConstructedRingEndScale,
+      }
+    : {
+        start: constructedRingStartScale,
+        end: constructedRingEndScale,
+      };
+}
+
+function forEachMaterial(material, callback) {
+  if (Array.isArray(material)) {
+    material.forEach(callback);
+  } else if (material) {
+    callback(material);
+  }
+}
+
+function cloneMaterial(material) {
+  if (Array.isArray(material)) {
+    return material.map((item) => item.clone());
+  }
+
+  return material ? material.clone() : material;
+}
+
+function setMaterialSide(material, side) {
+  forEachMaterial(material, (item) => {
+    if (item.side !== side) {
+      item.side = side;
+      item.needsUpdate = true;
+    }
+  });
+}
+
+function registerModelMeshes(root) {
+  root.traverse((child) => {
+    if (child.isMesh) {
+      setMaterialSide(child.material, THREE.FrontSide);
+    }
+  });
+}
+
+function setLoadedModel(root) {
+  model = new THREE.Group();
+  modelMarquee = new THREE.Group();
+  modelSpin = new THREE.Group();
+  modelSpin.rotation.y = THREE.MathUtils.degToRad(preIntroStartRotationDegrees);
+  ringRoot = root;
+  modelSpin.add(ringRoot);
+  modelMarquee.add(modelSpin);
+  model.add(modelMarquee);
+  scene.add(model);
+  registerModelMeshes(model);
+}
+
+function findMeshByObjectName(root, objectName) {
+  const namedObject = root.getObjectByName(objectName);
+
+  if (namedObject && namedObject.isMesh) {
+    return namedObject;
+  }
+
+  let foundMesh = null;
+  const searchRoot = namedObject || root;
+
+  searchRoot.traverse((child) => {
+    if (!foundMesh && child.isMesh && (!namedObject || child.name === objectName)) {
+      foundMesh = child;
+    }
+  });
+
+  return foundMesh;
+}
+
+function getSourceGeometry(sourceMesh) {
+  sourceMesh.updateWorldMatrix(true, false);
+
+  const geometry = sourceMesh.geometry.clone();
+  geometry.applyMatrix4(sourceMesh.matrixWorld);
+  geometry.computeBoundingBox();
+
+  return geometry;
+}
+
+function needsTextRingFont() {
+  return Boolean(currentOuterText || currentInnerText);
+}
+
+function loadTextRingFont() {
+  if (!needsTextRingFont() || !document.fonts) {
+    return Promise.resolve();
+  }
+
+  if (textRingFontLoadPromise) {
+    return textRingFontLoadPromise;
+  }
+
+  if (window.FontFace) {
+    const fontFace = new FontFace(textRingFontFamily, `url("${textRingFontUrl}")`, {
+      weight: '900',
+      style: 'normal',
+    });
+
+    textRingFontLoadPromise = fontFace
+      .load()
+      .then((loadedFont) => {
+        document.fonts.add(loadedFont);
+        return document.fonts.ready;
+      })
+      .catch((error) => {
+        console.warn(`Could not preload ${textRingFontFamily}. Browser fallback font will be used.`, error);
+      });
+
+    return textRingFontLoadPromise;
+  }
+
+  textRingFontLoadPromise = document.fonts
+    .load(`900 32px "${textRingFontFamily}"`)
+    .then(() => document.fonts.ready)
+    .catch((error) => {
+      console.warn(`Could not preload ${textRingFontFamily}. Browser fallback font will be used.`, error);
+    });
+
+  return textRingFontLoadPromise;
+}
+
+function createTextSourceMesh(text, name, copies, flipY) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const fontSize = 256 * textRingCanvasScale;
+  const padding = fontSize * textRingPadding;
+
+  context.font = `900 ${fontSize}px "${textRingFontFamily}"`;
+
+  const metrics = context.measureText(text);
+  const ascent = metrics.actualBoundingBoxAscent || fontSize * 0.78;
+  const descent = metrics.actualBoundingBoxDescent || fontSize * 0.22;
+
+  canvas.width = Math.ceil(metrics.width + (padding * 2));
+  canvas.height = Math.ceil(ascent + descent + (padding * 2));
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = `900 ${fontSize}px "${textRingFontFamily}"`;
+  context.fillStyle = textRingColor;
+  context.textAlign = 'left';
+  context.textBaseline = 'alphabetic';
+  context.fillText(text, padding, padding + ascent);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const naturalAspect = canvas.width / canvas.height;
+  const naturalWidth = textRingHeight * naturalAspect;
+  const maxSlotWidth = (Math.PI * 2 * constructedRingEndRadius / copies) * textRingSlotFill;
+  const sourceWidth = textRingAutoFitToRepeat
+    ? Math.min(naturalWidth, maxSlotWidth)
+    : naturalWidth;
+  const sourceHeight = sourceWidth / naturalAspect;
+  const geometry = new THREE.PlaneBufferGeometry(
+    sourceWidth,
+    sourceHeight,
+    textRingGeometrySegments,
+    1
+  );
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.02,
+    color: 0xffffff,
+    side: THREE.FrontSide,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+
+  mesh.name = name;
+  mesh.rotation.y = flipY ? Math.PI : 0;
+  mesh.updateMatrixWorld(true);
+
+  return mesh;
+}
+
+function updateBentGeometry(targetGeometry, sourceGeometry, sourceBounds, flatOffset, widthScale, circumference, radius) {
+  const sourcePositions = sourceGeometry.attributes.position;
+  const targetPositions = targetGeometry.attributes.position;
+  const sourceNormals = sourceGeometry.attributes.normal;
+  const targetNormals = targetGeometry.attributes.normal;
+  const sourceZCenter = (sourceBounds.min.z + sourceBounds.max.z) * 0.5;
+
+  for (let i = 0; i < sourcePositions.count; i++) {
+    const x = sourcePositions.getX(i);
+    const y = sourcePositions.getY(i);
+    const z = sourcePositions.getZ(i) - sourceZCenter;
+    const flatX = flatOffset + ((x - sourceBounds.min.x) * widthScale);
+    const angle = (flatX / circumference) * Math.PI * 2;
+    const radialX = Math.sin(angle);
+    const radialZ = Math.cos(angle);
+    const tangentX = Math.cos(angle);
+    const tangentZ = -Math.sin(angle);
+    const vertexRadius = radius + z;
+
+    targetPositions.setXYZ(
+      i,
+      radialX * vertexRadius,
+      y,
+      radialZ * vertexRadius
+    );
+
+    if (sourceNormals && targetNormals) {
+      const normalX = sourceNormals.getX(i);
+      const normalY = sourceNormals.getY(i);
+      const normalZ = sourceNormals.getZ(i);
+      const bentNormalX = tangentX * normalX + radialX * normalZ;
+      const bentNormalY = normalY;
+      const bentNormalZ = tangentZ * normalX + radialZ * normalZ;
+      const bentNormalLength = Math.sqrt(
+        (bentNormalX * bentNormalX) +
+        (bentNormalY * bentNormalY) +
+        (bentNormalZ * bentNormalZ)
+      ) || 1;
+
+      targetNormals.setXYZ(
+        i,
+        bentNormalX / bentNormalLength,
+        bentNormalY / bentNormalLength,
+        bentNormalZ / bentNormalLength
+      );
+    }
+  }
+
+  targetPositions.needsUpdate = true;
+
+  if (targetNormals) {
+    targetNormals.needsUpdate = true;
+  }
+
+  targetGeometry.computeBoundingBox();
+  targetGeometry.computeBoundingSphere();
+}
+
+function getViewportWidthAtOrigin() {
+  return getViewportHeightAtOrigin() * camera.aspect;
+}
+
+function getStreamSpanX(stream) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+
+  stream.meshes.forEach((mesh) => {
+    mesh.geometry.computeBoundingBox();
+    const bounds = mesh.geometry.boundingBox;
+
+    if (!bounds) {
+      return;
+    }
+
+    minX = Math.min(minX, bounds.min.x);
+    maxX = Math.max(maxX, bounds.max.x);
+  });
+
+  return Number.isFinite(minX) && Number.isFinite(maxX)
+    ? maxX - minX
+    : 0;
+}
+
+function updateRingStreamWidth(stream, widthScale, gapScale, radius) {
+  const circumference = Math.PI * 2 * radius;
+  const sourceWidth = stream.sourceBounds.max.x - stream.sourceBounds.min.x;
+  const slotWidth = circumference / stream.copyCount;
+  const gap = slotWidth - sourceWidth;
+  const scaledSourceWidth = sourceWidth * widthScale;
+  const scaledGap = gap * gapScale;
+  const scaledSlotWidth = scaledSourceWidth + scaledGap;
+
+  stream.meshes.forEach((mesh, i) => {
+    const flatOffset = (i * scaledSlotWidth) + (scaledGap * 0.5);
+
+    updateBentGeometry(
+      mesh.geometry,
+      stream.sourceGeometry,
+      stream.sourceBounds,
+      flatOffset,
+      widthScale,
+      circumference,
+      radius
+    );
+  });
+}
+
+function buildRingPart(sourceMesh, part, radius) {
+  const group = new THREE.Group();
+  const sourceGeometry = getSourceGeometry(sourceMesh);
+
+  if (part.flipY && !part.text) {
+    sourceGeometry.applyMatrix4(new THREE.Matrix4().makeRotationY(Math.PI));
+    sourceGeometry.computeBoundingBox();
+  }
+
+  const sourceBounds = sourceGeometry.boundingBox;
+  const stream = {
+    name: part.name,
+    group,
+    isInnerRing: part.isInnerRing,
+    isTextRing: Boolean(part.text),
+    mobileMarqueeOnly: Boolean(part.mobileMarqueeOnly),
+    sourceGeometry,
+    sourceBounds,
+    material: cloneMaterial(sourceMesh.material),
+    materialSide: null,
+    copyCount: part.copies,
+    meshes: [],
+  };
+
+  group.name = part.name;
+  group.visible = !part.isInnerRing && !part.mobileMarqueeOnly;
+  group.rotation.y = part.mobileMarqueeOnly ? Math.PI : 0;
+
+  for (let i = 0; i < part.copies; i++) {
+    const ringMesh = new THREE.Mesh(
+      sourceGeometry.clone(),
+      stream.material
+    );
+
+    ringMesh.name = `${part.name}_${i + 1}`;
+    stream.meshes.push(ringMesh);
+    group.add(ringMesh);
+  }
+
+  updateRingStreamWidth(stream, streamWidthStartScale, streamGapStartScale, radius);
+  constructedRingStreams.push(stream);
+
+  return group;
+}
+
+function getConstructedRingParts() {
+  const innerRingOption = innerRingOptions[currentInnerRing] || innerRingOptions.film;
+  return [
+    {
+      name: outerRingName,
+      text: currentOuterText,
+      copies: currentOuterText ? outerTextCopies : outerRingCopies,
+      isInnerRing: false,
+    },
+    {
+      ...innerRingOption,
+      text: currentInnerText,
+      copies: currentInnerText ? innerTextCopies : innerRingOption.copies,
+      isInnerRing: true,
+    },
+  ];
+}
+
+function disposeMaterial(material, disposeMaps) {
+  forEachMaterial(material, (item) => {
+    if (disposeMaps && item.map) {
+      item.map.dispose();
+    }
+
+    item.dispose();
+  });
+}
+
+function clearConstructedRingStreams() {
+  constructedRingStreams.forEach((stream) => {
+    stream.meshes.forEach((mesh) => {
+      mesh.geometry.dispose();
+    });
+
+    disposeMaterial(stream.material, stream.isTextRing);
+  });
+
+  constructedRingStreams.length = 0;
+}
+
+function buildConstructedRingGroup(parts) {
+  const group = new THREE.Group();
+
+  parts.forEach((part) => {
+    const sourceMesh = part.text
+      ? createTextSourceMesh(part.text, `${part.name}_TEXT`, part.copies, part.isInnerRing)
+      : findMeshByObjectName(sourceScene, part.name);
+
+    if (!sourceMesh) {
+      console.error(`Missing mesh "${part.name}" in ${constructedRingAsset}`);
+      return;
+    }
+
+    group.add(buildRingPart(sourceMesh, part, constructedRingStartRadius));
+  });
+
+  return group;
+}
+
+function applyCurrentRingState() {
+  const introProgress = getIntroProgress(performance.now());
+  const marqueeProgress = getMarqueeProgress(performance.now());
+
+  constructedRingIntroFinished = false;
+  updateIntroSwitchState(introProgress, marqueeProgress);
+  updateConstructedRingIntro(lastEasedVisualIntroProgress, true);
+  updateMarqueePhase(easeOutCubic(marqueeProgress));
+}
+
+function rebuildConstructedRing() {
+  if (!sourceScene) {
+    return Promise.resolve();
+  }
+
+  const rebuildId = ++ringRebuildId;
+
+  return loadTextRingFont()
+    .then(() => {
+      if (rebuildId !== ringRebuildId) {
+        return;
+      }
+
+      if (modelSpin && ringRoot) {
+        modelSpin.remove(ringRoot);
+      }
+
+      clearConstructedRingStreams();
+
+      const newRingRoot = buildConstructedRingGroup(getConstructedRingParts());
+
+      ringRoot = newRingRoot;
+
+      if (modelSpin) {
+        modelSpin.add(ringRoot);
+        registerModelMeshes(ringRoot);
+        applyCurrentRingState();
+      }
+    })
+    .catch(console.error);
+}
+
+function clamp01(value) {
+  return Math.min(Math.max(value, 0), 1);
+}
+
+function getClockwiseDegreesToTarget(startDegrees, targetDegrees) {
+  const distance = ((startDegrees - targetDegrees) % 360 + 360) % 360;
+
+  return distance === 0 ? 360 : distance;
+}
+
+function getIntroSwitchProgress() {
+  if (!introSwitchEnabled) {
+    return 0;
+  }
+
+  if (introSwitchPoint.type === 'time') {
+    return clamp01(
+      introSwitchPoint.value > 1
+        ? introSwitchPoint.value / introAnimationDurationMs
+        : introSwitchPoint.value
+    );
+  }
+
+  const clockwiseDegrees = getClockwiseDegreesToTarget(
+    preIntroStartRotationDegrees,
+    introSwitchPoint.value
+  );
+  const totalStartupDegrees = Math.max(Math.abs(introSpinTurns) * 360, 1);
+
+  return clamp01(clockwiseDegrees / totalStartupDegrees);
+}
+
+function getVideoSphereElapsedMs(now) {
+  if (!videoSphereLayerSettings.enabled || startupSpinStartTime === null) {
+    return 0;
+  }
+
+  return Math.max(now - startupSpinStartTime - getTextEntryPauseDurationMs(now), 0);
+}
+
+function getVideoSphereSegmentProgress(elapsedMs, startMs, durationMs) {
+  return clamp01((elapsedMs - startMs) / durationMs);
+}
+
+function getFrontLockedSpinAngle(spinProgress) {
+  const spinAngle = Math.PI * 2 * videoSphereLayerSettings.spinTurns;
+  const easedSpinProgress = easeOutCubic(spinProgress);
+
+  return -spinAngle + (spinAngle * easedSpinProgress);
+}
+
+function updateVideoSphereLayer(delta, now) {
+  if (!videoSphereLayer) {
+    return;
+  }
+
+  const elapsedMs = getVideoSphereElapsedMs(now);
+  const introStartMs = videoSphereLayerSettings.delayMs;
+  const expandStartMs = introStartMs +
+    videoSphereLayerSettings.introAnimationMs +
+    videoSphereLayerSettings.spinTimeMs;
+  const introProgress = getVideoSphereSegmentProgress(
+    elapsedMs,
+    introStartMs,
+    videoSphereLayerSettings.introAnimationMs
+  );
+  const warpProgress = getVideoSphereSegmentProgress(
+    elapsedMs,
+    expandStartMs,
+    videoSphereLayerSettings.expandAnimationMs
+  );
+  const spinDurationMs = videoSphereLayerSettings.introAnimationMs +
+    videoSphereLayerSettings.spinTimeMs;
+  const activeSpinMs = THREE.MathUtils.clamp(
+    elapsedMs - introStartMs,
+    0,
+    spinDurationMs
+  );
+  const spinProgress = spinDurationMs > 0
+    ? activeSpinMs / spinDurationMs
+    : 1;
+  const spinAngle = getFrontLockedSpinAngle(spinProgress);
+
+  videoSphereLayer.sphereMesh.rotation.set(0, Math.PI + spinAngle, 0);
+  videoSphereLayer.sphereMesh.scale.setScalar(easeOutCubic(introProgress));
+  videoSphereLayer.syncScreenAspect();
+  updateVideoSphereGeometry(videoSphereLayer, warpProgress);
+
+  if (videoSphereLayer.video && videoSphereLayer.video.paused) {
+    videoSphereLayer.tryPlayVideo();
+  }
+}
+
+function loadGltf(url) {
+  return new Promise((resolve, reject) => {
+    loader.load(url, resolve, undefined, reject);
+  });
+}
+
+function loadConstructedRing() {
+  Promise.all([
+    loadTextRingFont(),
+    loadGltf(constructedRingAsset),
+  ])
+    .then(([, gltf]) => {
+      sourceScene = gltf.scene;
+
+      introSwitchProgress = getIntroSwitchProgress();
+
+      setLoadedModel(buildConstructedRingGroup(getConstructedRingParts()));
+    })
+    .catch(console.error);
+}
+
+loadConstructedRing();
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeIntro(t) {
+  return t < 0.5
+    ? 64 * t * t * t * t * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 7) / 2;
+}
+
+function easeStartupSpin(t) {
+  if (!introSwitchEnabled) {
+    return easeIntro(t);
+  }
+
+  const switchProgress = THREE.MathUtils.clamp(introSwitchProgress, 0.05, 0.95);
+
+  if (t <= switchProgress) {
+    return switchProgress * easeOutCubic(t / switchProgress);
+  }
+
+  return switchProgress + ((1 - switchProgress) * easeIntro((t - switchProgress) / (1 - switchProgress)));
+}
+
+function updateRestingTilt(now) {
+  if (!model) {
+    return;
+  }
+
+  const marqueeProgress = easeOutCubic(getMarqueeProgress(now));
+
+  if (isMobileLayout && marqueeProgress > 0) {
+    model.rotation.x = 0;
+    model.rotation.z = 0;
+    return;
+  }
+
+  const tiltAmount = 1 - marqueeProgress;
+  const time = now * -0.001 * secondaryRotationSpeed;
+
+  model.rotation.x = (baseTiltX + (Math.sin(time) * secondaryRotationXAmount)) * tiltAmount;
+  model.rotation.z = (baseTiltZ + (Math.cos(time * 0.8) * secondaryRotationZAmount)) * tiltAmount;
+}
+
+function getIntroProgress(now) {
+  if (startupSpinStartTime === null) {
+    return 0;
+  }
+
+  const introElapsed = now - startupSpinStartTime;
+
+  return Math.min(introElapsed / introAnimationDurationMs, 1);
+}
+
+function getVisualIntroProgress(introProgress) {
+  if (!introSwitchEnabled) {
+    return introProgress;
+  }
+
+  const switchProgress = THREE.MathUtils.clamp(introSwitchProgress, 0, 0.95);
+
+  return clamp01((introProgress - switchProgress) / (1 - switchProgress));
+}
+
+function getMarqueeProgress(now) {
+  if (!marqueePhaseEnabled || startupSpinStartTime === null) {
+    return 0;
+  }
+
+  const marqueeElapsed = Math.max(
+    now - startupSpinStartTime - getTextEntryPauseDurationMs(now) - marqueePhaseDelayMs,
+    0
+  );
+
+  return Math.min(marqueeElapsed / marqueePhaseDurationMs, 1);
+}
+
+function getTextEntryPauseDurationMs(now) {
+  const activePauseDuration = marqueePauseStartTime === null
+    ? 0
+    : now - marqueePauseStartTime;
+
+  return marqueePausedDurationMs + activePauseDuration;
+}
+
+function getViewportHeightAtOrigin() {
+  return 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+}
+
+function getMarqueeTargetY(outerScale, bottomPaddingViewport) {
+  const targetStream = constructedRingStreams.find((stream) => !stream.isInnerRing);
+
+  if (!targetStream || !modelSpin) {
+    return 0;
+  }
+
+  const viewportHeight = getViewportHeightAtOrigin();
+  const viewportBottom = viewportHeight * -0.5;
+  const bottomPadding = viewportHeight * bottomPaddingViewport;
+  const scaledRingBottom = targetStream.sourceBounds.min.y * modelSpin.scale.y * outerScale;
+
+  return viewportBottom + bottomPadding - scaledRingBottom;
+}
+
+function updateOuterRingSidedness(hasPassedSwitch) {
+  const outerSide = hasPassedSwitch ? THREE.FrontSide : THREE.DoubleSide;
+
+  constructedRingStreams.forEach((stream) => {
+    if (!stream.isInnerRing && stream.materialSide !== outerSide) {
+      setMaterialSide(stream.material, outerSide);
+      stream.materialSide = outerSide;
+    }
+  });
+}
+
+function updateIntroSwitchState(introProgress, marqueeProgress) {
+  const hasPassedSwitch = !introSwitchEnabled || introProgress >= introSwitchProgress;
+
+  updateOuterRingSidedness(hasPassedSwitch);
+
+  constructedRingStreams.forEach((stream) => {
+    if (stream.mobileMarqueeOnly) {
+      stream.group.visible = false;
+    } else if (stream.isInnerRing) {
+      stream.group.visible = hasPassedSwitch && marqueeProgress === 0;
+    } else {
+      stream.group.visible = true;
+    }
+  });
+}
+
+function updateCameraIntro(easedProgress) {
+  const marqueeProgress = isMobileLayout
+    ? easeOutCubic(getMarqueeProgress(performance.now()))
+    : 0;
+
+  camera.fov = THREE.MathUtils.lerp(introDisabledFov, mobileMarqueeFov, marqueeProgress);
+  camera.position.x = 0;
+  camera.position.y = 0;
+  camera.position.z = THREE.MathUtils.lerp(introCameraStartZ, introDisabledZ, easedProgress);
+  camera.updateProjectionMatrix();
+
+  controls.target.x = 0;
+  controls.target.y = 0;
+}
+
+function updateConstructedRingIntro(easedProgress, force) {
+  lastEasedVisualIntroProgress = easedProgress;
+
+  if (constructedRingStreams.length === 0 || (constructedRingIntroFinished && !force)) {
+    return;
+  }
+
+  const widthScale = THREE.MathUtils.lerp(streamWidthStartScale, streamWidthEndScale, easedProgress);
+  const gapScale = THREE.MathUtils.lerp(streamGapStartScale, streamGapEndScale, easedProgress);
+  const radius = THREE.MathUtils.lerp(constructedRingStartRadius, constructedRingEndRadius, easedProgress);
+  const introScaleRange = getActiveIntroScaleRange();
+  const overallScale = THREE.MathUtils.lerp(introScaleRange.start, introScaleRange.end, easedProgress);
+
+  constructedRingStreams.forEach((stream) => {
+    updateRingStreamWidth(stream, widthScale, gapScale, radius);
+  });
+
+  if (modelSpin) {
+    modelSpin.scale.setScalar(overallScale);
+  }
+
+  if (easedProgress >= 1) {
+    constructedRingIntroFinished = true;
+  }
+}
+
+function updateMobileMarqueeRing(easedProgress) {
+  if (!isMobileLayout) {
+    return;
+  }
+
+  const mobileMarqueeStream = constructedRingStreams.find((stream) => !stream.isInnerRing);
+
+  if (!mobileMarqueeStream) {
+    return;
+  }
+
+  const sourceWidth = mobileMarqueeStream.sourceBounds.max.x - mobileMarqueeStream.sourceBounds.min.x;
+  const widthScale = THREE.MathUtils.lerp(streamWidthEndScale, mobileMarqueeWidthScale, easedProgress);
+  const scaledSourceWidth = sourceWidth * widthScale;
+  const targetGap = scaledSourceWidth * mobileMarqueeGapRatio;
+  const targetRadius = (scaledSourceWidth + targetGap) / (Math.PI * 2);
+  const radius = THREE.MathUtils.lerp(constructedRingEndRadius, targetRadius, easedProgress);
+  const gapScale = 1;
+
+  updateRingStreamWidth(mobileMarqueeStream, widthScale, gapScale, radius);
+}
+
+function updateMarqueePhase(easedProgress) {
+  if (!modelMarquee) {
+    return;
+  }
+
+  if (!marqueePhaseEnabled || easedProgress <= 0) {
+    modelMarquee.position.y = 0;
+    modelMarquee.scale.set(1, 1, 1);
+    modelMarquee.rotation.set(0, 0, 0);
+    return;
+  }
+
+  updateMobileMarqueeRing(easedProgress);
+
+  const marqueeSettings = getActiveMarqueeSettings();
+  let targetOuterScale = marqueeSettings.outerScale;
+
+  if (isMobileLayout) {
+    const mobileMarqueeStream = constructedRingStreams.find((stream) => !stream.isInnerRing);
+
+    if (mobileMarqueeStream && modelSpin) {
+      const streamSpanX = getStreamSpanX(mobileMarqueeStream);
+      const viewportWidth = getViewportWidthAtOrigin() * mobileMarqueeWidthFill;
+      const spinScale = modelSpin.scale.x || 1;
+
+      if (streamSpanX > 0 && spinScale > 0) {
+        targetOuterScale = viewportWidth / (streamSpanX * spinScale);
+      }
+    }
+  }
+
+  const outerScale = THREE.MathUtils.lerp(1, targetOuterScale, easedProgress);
+  const depthScale = THREE.MathUtils.lerp(1, marqueeSettings.depthScale, easedProgress);
+  const y = THREE.MathUtils.lerp(
+    0,
+    getMarqueeTargetY(outerScale, marqueeSettings.bottomPaddingViewport),
+    easedProgress
+  );
+
+  modelMarquee.position.y = y;
+  modelMarquee.scale.set(outerScale, outerScale, depthScale);
+  modelMarquee.rotation.x = THREE.MathUtils.lerp(0, marqueeSettings.rotationX, easedProgress);
+  modelMarquee.rotation.z = THREE.MathUtils.lerp(0, marqueeSettings.rotationZ, easedProgress);
+}
+
+function isEditableTarget(target) {
+  return target && (
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT'
+  );
+}
+
+function pauseMarqueeForTyping() {
+  if (marqueePauseStartTime === null) {
+    marqueePauseStartTime = performance.now();
+  }
+}
+
+function resumeMarqueeAfterTyping() {
+  if (marqueePauseStartTime !== null) {
+    marqueePausedDurationMs += performance.now() - marqueePauseStartTime;
+    marqueePauseStartTime = null;
+  }
+}
+
+function setCurrentInnerRing(ringName) {
+  if (!innerRingOptions[ringName]) {
+    return;
+  }
+
+  currentInnerRing = ringName;
+
+  if (!isTypingText) {
+    currentInnerText = innerText.trim();
+    awaitingTextConfirm = false;
+  }
+
+  rebuildConstructedRing();
+}
+
+function setTypedInnerText(nextText) {
+  typedText = nextText;
+  currentInnerText = typedText.trim() ? typedText : innerText.trim();
+  rebuildConstructedRing();
+}
+
+function beginTypingText(character) {
+  if (!isTypingText) {
+    isTypingText = true;
+    typedText = '';
+    awaitingTextConfirm = false;
+    pauseMarqueeForTyping();
+  }
+
+  setTypedInnerText(typedText + character);
+}
+
+function commitTypedText() {
+  if (!isTypingText) {
+    return;
+  }
+
+  const committedText = typedText.trim();
+
+  if (committedText) {
+    currentOuterText = committedText;
+    currentInnerText = committedText;
+    awaitingTextConfirm = true;
+  }
+
+  isTypingText = false;
+  typedText = committedText;
+  rebuildConstructedRing();
+}
+
+function finishTextEntry() {
+  if (!awaitingTextConfirm) {
+    return;
+  }
+
+  awaitingTextConfirm = false;
+  typedText = '';
+  resumeMarqueeAfterTyping();
+}
+
+function resetTextEntries() {
+  isTypingText = false;
+  typedText = '';
+  awaitingTextConfirm = false;
+  currentInnerRing = activeInnerRing;
+  currentOuterText = outerText.trim();
+  currentInnerText = innerText.trim();
+  resumeMarqueeAfterTyping();
+  rebuildConstructedRing();
+}
+
+window.addEventListener('keydown', (event) => {
+  if (isEditableTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+
+  if (event.key === '1' && !isTypingText) {
+    event.preventDefault();
+    setCurrentInnerRing('film');
+    return;
+  }
+
+  if (event.key === '2' && !isTypingText) {
+    event.preventDefault();
+    setCurrentInnerRing('music');
+    return;
+  }
+
+  if (event.key === 'Enter') {
+    event.preventDefault();
+
+    if (isTypingText) {
+      commitTypedText();
+    } else if (awaitingTextConfirm) {
+      finishTextEntry();
+    } else {
+      resumeMarqueeAfterTyping();
+    }
+
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    resetTextEntries();
+    return;
+  }
+
+  if (event.key === 'Backspace' && isTypingText) {
+    event.preventDefault();
+    setTypedInnerText(typedText.slice(0, -1));
+    return;
+  }
+
+  if (event.key.length === 1 && (isTypingText || !/^[0-9]$/.test(event.key))) {
+    event.preventDefault();
+
+    if (event.key === ' ' && !isTypingText) {
+      return;
+    }
+
+    beginTypingText(event.key);
+  }
+});
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const delta = clock.getDelta();
+  const now = performance.now();
+
+  if (modelSpin) {
+    if (startupSpinStartTime === null) {
+      startupSpinStartTime = now;
+    }
+
+    const introProgress = getIntroProgress(now);
+    const visualIntroProgress = getVisualIntroProgress(introProgress);
+    const easedVisualIntroProgress = easeIntro(visualIntroProgress);
+    const marqueeProgress = getMarqueeProgress(now);
+    const easedMarqueeProgress = easeOutCubic(marqueeProgress);
+
+    if (!startupSpinFinished) {
+      const startupDuration = introAnimationDurationMs * 0.001;
+      const startupElapsed = now - startupSpinStartTime;
+      const restingSpinAngle = -spinSpeed * (startupElapsed * 0.001);
+      const startupSpinAngleTarget = introSpinTurns * Math.PI * 2;
+      const startupSpinBoost = Math.max(startupSpinAngleTarget - (spinSpeed * startupDuration), 0);
+      const startupSpinAngle = restingSpinAngle - (startupSpinBoost * easeStartupSpin(introProgress));
+      const startupSpinDelta = startupSpinAngle - startupSpinLastAngle;
+      startupSpinLastAngle = startupSpinAngle;
+
+      modelSpin.rotation.y += startupSpinDelta;
+
+      if (introProgress >= 1) {
+        startupSpinFinished = true;
+      }
+    } else {
+      const activeSpinSpeed = THREE.MathUtils.lerp(spinSpeed, marqueeSpinSpeed, easedMarqueeProgress);
+      const marqueeSpinAngle = -marqueeTransitionSpinTurns * Math.PI * 2 * easedMarqueeProgress;
+      const marqueeSpinDelta = marqueeSpinAngle - marqueeSpinLastAngle;
+      marqueeSpinLastAngle = marqueeSpinAngle;
+
+      modelSpin.rotation.y += (-delta * activeSpinSpeed) + marqueeSpinDelta;
+    }
+
+    updateRestingTilt(now);
+    updateIntroSwitchState(introProgress, marqueeProgress);
+    updateConstructedRingIntro(easedVisualIntroProgress);
+    updateMarqueePhase(easedMarqueeProgress);
+  }
+
+  updateVideoSphereLayer(delta, now);
+  updateCameraIntro(easeIntro(getVisualIntroProgress(getIntroProgress(now))));
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const nextIsMobileLayout = getIsMobileLayout();
+
+  if (nextIsMobileLayout !== isMobileLayout) {
+    isMobileLayout = nextIsMobileLayout;
+    rebuildConstructedRing();
+  }
+
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(getRendererPixelRatio());
+  renderer.setSize(innerWidth, innerHeight);
+
+  if (videoSphereLayer) {
+    videoSphereLayer.syncScreenAspect();
+  }
+});
+</script>
+
+</body>
+</html>
